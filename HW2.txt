@@ -1,0 +1,165 @@
+name:leila
+last_name:mohseni
+student_id:40131044
+
+
+def remove_useless_symbols(symbols_to_keep, grammar, non_terminals):
+    updated_grammar = {}
+    for symbol, productions in grammar.items():
+        if symbol in symbols_to_keep:
+            new_productions = []
+            for production in productions:
+                if all(s in symbols_to_keep or s not in non_terminals for s in production):
+                    new_productions.append(production)
+            if new_productions:
+                updated_grammar[symbol] = new_productions
+    return updated_grammar
+
+def find_unused_symbols(grammar, variables):
+    used_symbols = set()
+    check = True
+    while check:
+        check = False
+        for symbol, productions in grammar.items():
+            if symbol not in used_symbols:
+                for production in productions:
+                    if all(s in used_symbols or s.islower() for s in production):
+                        used_symbols.add(symbol)
+                        check = True
+                        break
+    grammar = remove_useless_symbols(used_symbols, grammar, variables)
+    reachable_symbols = set(["S"])
+    check = True
+    while check:
+        check = False
+        for symbol in list(reachable_symbols):
+            for production in grammar.get(symbol, []):
+                for symbol_in_production in production:
+                    if symbol_in_production in variables and symbol_in_production not in reachable_symbols:
+                        reachable_symbols.add(symbol_in_production)
+                        check = True
+    grammar = remove_useless_symbols(reachable_symbols, grammar, variables)
+    return grammar
+
+def expand_unit_productions(new_production, grammar, non_terminals, original_symbol):
+    productions = grammar[new_production]
+    updated_productions = []
+    for production in productions:
+        if production == original_symbol:
+            continue
+        if len(production) == 1 and production in non_terminals:
+            new_productions = expand_unit_productions(production, grammar, non_terminals, new_production)
+            updated_productions.extend(new_productions)
+        else:
+            updated_productions.append(production)
+    return updated_productions
+
+def remove_unit_productions(grammar, non_terminals):
+    updated_grammar = {}
+    for symbol, productions in grammar.items():
+        new_productions = []
+        for production in productions:
+            if len(production) == 1 and production in non_terminals:
+                new_productions.extend(expand_unit_productions(production, grammar, non_terminals, symbol))
+            else:
+                new_productions.append(production)
+        new_productions_set = set(new_productions)
+        new_productions = list(new_productions_set)
+        updated_grammar[symbol] = new_productions
+    return updated_grammar
+
+def generate_nullable_mod(null_set, production_list):
+    new_production_list = ['']
+    for symbol in production_list:
+        if symbol in null_set:
+            new_production_list.extend([new_symbol + symbol for new_symbol in new_production_list])
+        else:
+            new_production_list = [new_symbol + symbol for new_symbol in new_production_list]
+    if '' in new_production_list:
+        new_production_list.remove('')
+    return new_production_list
+
+def remove_nullable_mod(input_case):
+    nullable_set = set()
+    updated_grammar = {}
+    grammar = input_case["P"]
+    check_flag = True
+    while check_flag:
+        check_flag = False
+        for non_terminal, productions in grammar.items():
+            if non_terminal not in nullable_set:
+                for production in productions:
+                    for symbol in production:
+                        if symbol in nullable_set:
+                            nullable_set.add(non_terminal)
+                            check_flag = True
+                    if all(s == "" for s in production):
+                        nullable_set.add(non_terminal)
+                        check_flag = True
+    for non_terminal, productions in grammar.items():
+        new_productions = []
+        for production in productions:
+            if production == "":
+                continue
+            new_productions.extend(generate_nullable_mod(nullable_set, production))
+        new_productions_set = set(new_productions)
+        new_productions = list(new_productions_set)
+        updated_grammar[non_terminal] = new_productions
+    return updated_grammar
+
+test_cases = {
+    "1": {
+        "V": ["S", "A", "B", "C", "D"],
+        "T": ["a", "c", "d"],
+        "P": {
+            "S": ["a", "aA", "B", "C"],
+            "A": ["aB", ""],
+            "B": ["Aa"],
+            "C": ["cCD"],
+            "D": ["ddd"]
+        },
+        "S": ["S"]
+    },
+    "2": {
+        "V": ["S", "A", "B"],
+        "T": ["a", "b", "c"],
+        "P": {
+            "S": ["Aa", "B"],
+            "A": ["a", "bc", "B"],
+            "B": ["A", "bb"]
+        },
+        "S": ["S"]
+    },
+    "3": {
+        "V": ["S", "A", "B", "C", "D"],
+        "T": ["a", "b", "d"],
+        "P": {
+            "S": ["ABaC"],
+            "A": ["BC"],
+            "B": ["b", ""],
+            "C": ["D", ""],
+            "D": ["d"]
+        },
+        "S": ["S"]
+    }
+}
+
+for key, values in test_cases.items():
+    test_case = values
+    print(f"Output of test {key}:")
+    new_grammar = remove_nullable_mod(test_case)
+    new_grammar = remove_unit_productions(new_grammar, test_case["V"])
+    new_grammar = find_unused_symbols(new_grammar, test_case["V"])
+    print(new_grammar)
+    
+
+
+output:
+
+Output of test 1
+{'S': ['Aa', 'a', 'aA'], 'A': ['aB', 'a'], 'B': ['Aa', 'a']}
+Output of test 2
+{'S': ['Aa', 'bb', 'bc', 'a'], 'A': ['bc', 'a', 'bb']}
+Output of test 3
+{'S': ['Aa', 'ABa', 'AaC', 'aC', 'Ba', 'BaC', 'a', 'ABaC'], 'A': ['BC', 'b', 'd'], 'B': ['b'], 'C': ['d']}
+
